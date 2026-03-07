@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(node -e \":*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 4076 /F)"
+    ]
+  }
+}

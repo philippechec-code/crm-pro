@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Seed test data</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script>
+  try{
+    const KEY_USERS = 'crm_users_v1';
+    const KEY_LEADS = 'crm_leads_v1';
+    const KEY_GROUPS = 'crm_groups_v1';
+
+    function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+    const now = new Date().toISOString();
+
+    const users = [
+      { id: uid('u'), email: 'admin@crm.fr', password: 'admin123', role: 'admin', full_name: 'Administrateur', active: true, created_at: now },
+      { id: uid('u'), email: 'agent@crm.fr', password: 'agent123', role: 'agent', full_name: 'Agent Test', active: true, created_at: now }
+    ];
+
+    const leads = [
+      {
+        id: uid('l'),
+        first_name: 'Jean',
+        last_name: 'Dupont',
+        address: '1 rue de Test',
+        city: 'Paris',
+        postal_code: '75001',
+        phone: '0612345678',
+        phone_normalized: '0612345678',
+        email: 'jean.dupont@example.com',
+        email_lower: 'jean.dupont@example.com',
+        status: 'nouveau',
+        source: 'import',
+        comment: 'Lead de test',
+        group_id: null,
+        assigned_to: users[1].id,
+        created_at: now,
+        updated_at: now,
+        history: []
+      }
+    ];
+
+    localStorage.setItem(KEY_USERS, JSON.stringify(users));
+    localStorage.setItem(KEY_LEADS, JSON.stringify(leads));
+    localStorage.setItem(KEY_GROUPS, JSON.stringify([]));
+
+    // also set current user to admin for immediate access
+    localStorage.setItem('crm_user', JSON.stringify({ id: users[0].id, email: users[0].email, role: users[0].role, full_name: users[0].full_name }));
+
+    document.body.innerHTML = '<h2>Données de test insérées</h2><p>Redirection vers l\'application...</p>';
+    setTimeout(()=> location.href='/', 400);
+  }catch(e){ document.body.innerText = 'Erreur lors du seed: '+e.message; }
+</script>
