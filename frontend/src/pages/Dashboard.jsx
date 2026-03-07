@@ -169,8 +169,7 @@ function AdminDashboard({ leads, users, statuses, stats, myLeads, reload, user, 
           </div>
         )}
 
-        {/* All-time summary per source (admin) */}
-        <AllTimeSourceSummary leads={leads} />
+        
 
         <SourceConversionChart leads={leads} />
         <AgentActivityTable leads={leads} users={users} statuses={statuses} />
@@ -387,10 +386,6 @@ function AllTimeSourceSummary({ leads }) {
 
   return (
     <div className="card" style={{ padding: '12px 16px', marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontWeight: 700 }}>Taux de conversion (All-time)</div>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{data.length} source{data.length!==1?'s':''}</div>
-      </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {data.slice(0, 8).map((r, i) => (
           <div key={r.source} style={{ minWidth: 160, flex: '1 1 160px', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
