@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import storage from '../services/storage';
+import { usersApi } from '../services/api';
 
 // Generate a consistent color from a string
 function strColor(str) {
@@ -27,8 +27,7 @@ export default function AgentSelect({ value, onChange }) {
 
   useEffect(() => {
     if (!open) {
-      const all = storage.getUsers().filter(u => u.active !== false);
-      setAgents(all);
+      usersApi.list().then(res => setAgents(res.data?.filter(u => u.active !== false) || [])).catch(() => {});
     }
   }, [open]);
 

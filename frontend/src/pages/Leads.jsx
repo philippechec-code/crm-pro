@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import storage from '../services/storage';
+import { usersApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import StatusSelect from '../components/StatusSelect';
 import AgentSelect from '../components/AgentSelect';
@@ -88,7 +89,7 @@ export default function Leads() {
 
   function reload(){
     setLeads(storage.getLeads());
-    setUsers(storage.getUsers());
+    usersApi.list().then(res => setUsers(res.data || [])).catch(() => setUsers([]));
     setStatuses(storage.getStatuses());
   }
 
@@ -171,7 +172,7 @@ export default function Leads() {
     if (selected.size === 0) { toast('Aucun prospect sélectionné', 'error'); return; }
     const ids = [...selected];
     if (userId === 'auto') {
-      const agents = storage.getUsers().filter(u => u.role !== 'admin').map(u => u.id);
+      const agents = users.filter(u => u.role !== 'admin').map(u => u.id);
       storage.roundRobinAssign(ids, agents, user?.id);
       toast('Répartition automatique effectuée', 'success');
     } else {

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import storage from '../services/storage';
+import { usersApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Toast from '../components/Toast';
 import CSVImportModal from '../components/CSVImportModal';
@@ -191,7 +192,7 @@ export default function Groups() {
 
   const handleExport = () => {
     setShowExportModal(false);
-    const users    = storage.getUsers();
+    const [users, setUsers] = useState([]); useEffect(() => { usersApi.list().then(res => setUsers(res.data || [])).catch(() => {}); }, []);
     const statuses = storage.getStatuses();
     const date     = new Date().toISOString().slice(0, 10);
     const fileName = `groupes_export_${date}.${exportFormat}`;

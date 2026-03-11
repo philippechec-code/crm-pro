@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useReminders } from '../contexts/ReminderContext';
 import storage from '../services/storage';
+import { usersApi } from '../services/api';
 import StatusSelect from '../components/StatusSelect';
 import AgentSelect from '../components/AgentSelect';
 import { StatusManagerModal } from './Leads';
@@ -58,7 +59,7 @@ export default function Dashboard() {
 
   function reload() {
     setLeads(storage.getLeads());
-    setUsers(storage.getUsers());
+    usersApi.list().then(res => setUsers(res.data || [])).catch(() => setUsers([]));
     setStatuses(storage.getStatuses());
   }
 

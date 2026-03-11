@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { previewCSV, analyzeImport, importCSVAdvanced } from '../services/storage';
+import { usersApi } from '../services/api';
 
 const LEAD_FIELDS = [
   { value: '', label: '— Ignorer —' },
@@ -60,6 +61,9 @@ export default function CSVImportModal({ groups, onClose, currentUserId }) {
   const [groupId, setGroupId] = useState(groups[0]?.id || '');
   const [status, setStatus] = useState('nouveau');
   const [source, setSource] = useState('');
+  const [assignTo, setAssignTo] = useState('');
+  const [agents, setAgents] = useState([]);
+  useEffect(() => { usersApi.list().then(res => setAgents(res.data?.filter(u => u.active !== false) || [])).catch(() => {}); }, []);
   const [dupPolicy, setDupPolicy] = useState('skip');
   const [analysis, setAnalysis] = useState(null);
   const [result, setResult] = useState(null);
@@ -113,6 +117,7 @@ export default function CSVImportModal({ groups, onClose, currentUserId }) {
         status,
         source: source || null,
         dupPolicy,
+        assignTo: assignTo || null,
         currentUserId,
       });
       setResult(res);
@@ -262,7 +267,7 @@ export default function CSVImportModal({ groups, onClose, currentUserId }) {
               </div>
 
               {/* Group / Status / Source */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div>
                   <label style={labelStyle}>Groupe</label>
                   <select value={groupId} onChange={e => setGroupId(e.target.value)} style={selectStyle}>
@@ -280,6 +285,13 @@ export default function CSVImportModal({ groups, onClose, currentUserId }) {
                   <label style={labelStyle}>Source</label>
                   <select value={source} onChange={e => setSource(e.target.value)} style={selectStyle}>
                     {SOURCES.map(s => <option key={s} value={s}>{s || '— Colonne CSV —'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Assigner à</label>
+                  <select value={assignTo} onChange={e => setAssignTo(e.target.value)} style={selectStyle}>
+                    <option value="">— Aucun agent —</option>
+                    {agents.map(a => <option key={a.id} value={a.id}>{a.full_name || a.email}</option>)}
                   </select>
                 </div>
               </div>

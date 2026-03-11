@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useReminders } from '../contexts/ReminderContext';
 import storage from '../services/storage';
+import { usersApi } from '../services/api';
 import Toast from '../components/Toast';
 
 function toast(msg, type = 'info') {
@@ -29,7 +30,8 @@ export default function Reminders() {
   const [snoozeId, setSnoozeId]         = useState(null);
   const [customSnooze, setCustomSnooze] = useState({ date: '', time: '' });
 
-  const users = useMemo(() => storage.getUsers().filter(u => u.role === 'agent'), []);
+  const [users, setUsers] = useState([]);
+  useEffect(() => { usersApi.list().then(res => setUsers(res.data?.filter(u => u.role === 'agent') || [])).catch(() => {}); }, []);
 
   // Stats (admin only)
   const stats = useMemo(() => {
