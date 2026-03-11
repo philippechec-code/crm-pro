@@ -101,6 +101,47 @@ const getLead = async (req, res) => {
   }
 };
 
+// ─── HELPER : Vérification des doublons ───────────────────────────────────────
+const checkDuplicate = async (phoneNorm, emailLower, excludeId = null) => {
+  // Vérification doublon par téléphone normalisé
+  if (phoneNorm) {
+    const phoneQuery = excludeId
+      ? 'SELECT id FROM leads WHERE phone_normalized = $1 AND id != $2 LIMIT 1'
+      : 'SELECT id FROM leads WHERE phone_normalized = $1 LIMIT 1';
+    const phoneParams = excludeId ? [phoneNorm, excludeId] : [phoneNorm];
+    
+    const dupPhone = await query(phoneQuery, phoneParams);
+    if (dupPhone.rows.length > 0) {
+      return { 
+        isDuplicate: true, 
+        field: 'phone',
+        message: 'Un lead avec ce numéro de téléphone existe déjà',
+        existing_id: dupPhone.rows[0].id 
+      };
+    }
+  }
+
+  // Vérification doublon par email
+  if (emailLower) {
+    const emailQuery = excludeId
+      ? 'SELECT id FROM leads WHERE email_lower = $1 AND id != $2 LIMIT 1'
+      : 'SELECT id FROM leads WHERE email_lower = $1 LIMIT 1';
+    const emailParams = excludeId ? [emailLower, excludeId] : [emailLower];
+    
+    const dupEmail = await query(emailQuery, emailParams);
+    if (dupEmail.rows.length > 0) {
+      return { 
+        isDuplicate: true, 
+        field: 'email',
+        message: 'Un lead avec cet email existe déjà',
+        existing_id: dupEmail.rows[0].id 
+      };
+    }
+  }
+
+  return { isDuplicate: false };
+};
+
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 const createLead = async (req, res) => {
   const { first_name, last_name, address, city, postal_code,
@@ -110,6 +151,16 @@ const createLead = async (req, res) => {
   const emailLower = email ? email.trim().toLowerCase() : null;
 
   try {
+    // ✅ Vérification des doublons avant insertion
+    const duplicateCheck = await checkDuplicate(phoneNorm, emailLower);
+    if (duplicateCheck.isDuplicate) {
+      return res.status(409).json({ 
+        error: duplicateCheck.message,
+        field: duplicateCheck.field,
+        existing_id: duplicateCheck.existing_id 
+      });
+    }
+
     const result = await query(
       `INSERT INTO leads (first_name, last_name, address, city, postal_code,
                           phone, phone_normalized, email, email_lower,
@@ -129,6 +180,7 @@ const createLead = async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error('[LEADS] create:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 };
@@ -143,6 +195,23 @@ const updateLead = async (req, res) => {
   try {
     const current = await query('SELECT * FROM leads WHERE id = $1', [id]);
     if (!current.rows[0]) return res.status(404).json({ error: 'Lead introuvable' });
+
+    // ✅ Si téléphone ou email est modifié, vérifier les doublons
+    const newPhone = req.body.phone !== undefined ? req.body.phone : current.rows[0].phone;
+    const newEmail = req.body.email !== undefined ? req.body.email : current.rows[0].email;
+    const phoneNorm = normalizePhone(newPhone);
+    const emailLower = newEmail ? newEmail.trim().toLowerCase() : null;
+
+    if (req.body.phone !== undefined || req.body.email !== undefined) {
+      const duplicateCheck = await checkDuplicate(phoneNorm, emailLower, id);
+      if (duplicateCheck.isDuplicate) {
+        return res.status(409).json({ 
+          error: duplicateCheck.message,
+          field: duplicateCheck.field,
+          existing_id: duplicateCheck.existing_id 
+        });
+      }
+    }
 
     const updates = [];
     const values = [];
@@ -175,7 +244,7 @@ const updateLead = async (req, res) => {
 
     values.push(id);
     const result = await query(
-      `UPDATE leads SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+      `UPDATE leads SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING *`,
       values
     );
 
@@ -341,4 +410,69 @@ const addComment = async (req, res) => {
   }
 };
 
-module.exports = { listLeads, getLead, createLead, updateLead, deleteLead, importCSV, addComment };
+// ─── SUPPRESSION DES DOUBLONS EXISTANTS ───────────────────────────────────────
+const cleanDuplicates = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // Supprimer les doublons par téléphone (garde le plus ancien)
+    const phoneResult = await client.query(`
+      DELETE FROM leads a
+      USING leads b
+      WHERE a.phone_normalized = b.phone_normalized
+        AND a.phone_normalized IS NOT NULL
+        AND a.id > b.id
+      RETURNING a.id
+    `);
+
+    // Supprimer les doublons par email (garde le plus ancien)
+    const emailResult = await client.query(`
+      DELETE FROM leads a
+      USING leads b
+      WHERE a.email_lower = b.email_lower
+        AND a.email_lower IS NOT NULL
+        AND a.id > b.id
+      RETURNING a.id
+    `);
+
+    await client.query('COMMIT');
+
+    const totalDeleted = phoneResult.rowCount + emailResult.rowCount;
+
+    await logEvent('duplicates_cleaned', {
+      ip: clientIP(req),
+      userId: req.user.id,
+      username: req.user.username,
+      details: { 
+        phone_duplicates: phoneResult.rowCount,
+        email_duplicates: emailResult.rowCount,
+        total_deleted: totalDeleted
+      },
+    });
+
+    res.json({
+      message: `Nettoyage terminé : ${totalDeleted} doublons supprimés`,
+      phone_duplicates_removed: phoneResult.rowCount,
+      email_duplicates_removed: emailResult.rowCount,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[LEADS] cleanDuplicates:', err);
+    res.status(500).json({ error: 'Erreur lors du nettoyage : ' + err.message });
+  } finally {
+    client.release();
+  }
+};
+
+module.exports = { 
+  listLeads, 
+  getLead, 
+  createLead, 
+  updateLead, 
+  deleteLead, 
+  importCSV, 
+  addComment,
+  cleanDuplicates  // ✅ Nouvelle fonction pour nettoyer les doublons existants
+};
