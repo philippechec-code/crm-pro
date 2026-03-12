@@ -161,7 +161,7 @@ export default function Leads() {
   const handleBulkDelete = () => {
     const n = selected.size;
     if (!confirm(`Supprimer ${n} prospect${n > 1 ? 's' : ''} définitivement ? Cette action est irréversible.`)) return;
-    Promise.all([...selected].map(id => leadsApi.delete(id))).then(() => { reload(); setSelected(new Set()); toast('Prospects supprimés', 'success'); }).catch(e => toast('Erreur', 'error'));
+    leadsApi.deleteMultiple([...selected]).then(() => { reload(); setSelected(new Set()); toast('Prospects supprimés', 'success'); }).catch(e => toast('Erreur suppression', 'error')); return;
     setSelected(new Set());
     toast(`${n} prospect${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`, 'success');
     reload();
@@ -356,6 +356,23 @@ export default function Leads() {
       </div>
       </div>{/* end page-top */}
 
+        {/* Bulk action bar - sticky top */}
+        {user?.role === 'admin' && selected.size > 0 && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 100, padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-elevated)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginRight: 4 }}>{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
+            <select className="filter-select" defaultValue="" onChange={e => { if(e.target.value) bulkAssign(e.target.value); e.target.value=''}}>
+              <option value="" disabled>Assigner à…</option>
+              <option value="auto">Répartition automatique</option>
+              {users.filter(u => u.role !== 'admin').map(u => (
+                <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+              ))}
+            </select>
+            <button className="btn btn-danger btn-sm" onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              Supprimer ({selected.size})
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>Annuler</button>
+          </div>
+        )}
       {/* ── Table (zone scrollable) ──────────────────────────── */}
       <div className="page-scroll">
       <div className="card" style={{ padding: 0 }}>
@@ -465,27 +482,6 @@ export default function Leads() {
           </table>
         </div>
 
-        {/* Bulk action bar */}
-        {user?.role === 'admin' && selected.size > 0 && (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-elevated)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginRight: 4 }}>{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
-            <select className="filter-select" defaultValue="" onChange={e => { if(e.target.value) bulkAssign(e.target.value); e.target.value=''; }}>
-              <option value="" disabled>Assigner à…</option>
-              <option value="auto">Répartition automatique</option>
-              {users.filter(u => u.role !== 'admin').map(u => (
-                <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-              ))}
-            </select>
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={handleBulkDelete}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-              Supprimer ({selected.size})
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>Annuler</button>
-          </div>
         )}
       </div>
       </div>{/* end page-scroll */}
