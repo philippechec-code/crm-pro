@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import storage from '../services/storage';
+import { leadsApi, groupsApi, statusesApi } from '../services/api';
 import { usersApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Toast from '../components/Toast';
@@ -10,6 +11,15 @@ import CSVImportModal from '../components/CSVImportModal';
 function toast(msg, type = 'info') {
   window.dispatchEvent(new CustomEvent('crm:toast', { detail: { message: msg, type } }));
 }
+const statuses = [
+  { id: 'nouveau', label: 'Nouveau', color: '#0a84ff' },
+  { id: 'en_cours', label: 'En cours', color: '#ff9f0a' },
+  { id: 'rappel', label: 'Rappel', color: '#bf5af2' },
+  { id: 'interesse', label: 'Intéressé', color: '#30d158' },
+  { id: 'vendu', label: 'Vendu', color: '#00c7be' },
+  { id: 'pas_interesse', label: 'Pas intéressé', color: '#ff453a' },
+  { id: 'sans_reponse', label: 'Sans réponse', color: '#8e8e93' },
+];
 
 export default function Groups() {
   const { user } = useAuth();
@@ -41,8 +51,8 @@ export default function Groups() {
   const [exportFormat, setExportFormat] = useState('xlsx');
 
   function reload() {
-    setGroups(storage.getGroups());
-    setLeads(storage.getLeads());
+    groupsApi.list().then(res => setGroups(res.data || [])).catch(e => console.error(e));
+    leadsApi.list().then(res => setLeads(res.data?.leads || [])).catch(e => console.error(e));
   }
 
   useEffect(() => { reload(); }, []);
@@ -56,7 +66,7 @@ export default function Groups() {
 
   const handleCreate = () => {
     if (!form.name.trim()) { toast('Nom requis', 'error'); return; }
-    storage.createGroup(form);
+    groupsApi.create(form).then(() => { reload(); toast('Groupe créé', 'success'); }).catch(e => toast('Erreur', 'error'));
     toast('Groupe créé', 'success');
     setForm({ name: '', description: '', color: '#60a5fa' });
     setShowCreate(false);
@@ -65,7 +75,7 @@ export default function Groups() {
 
   const handleEdit = () => {
     if (!editForm.name?.trim()) { toast('Nom requis', 'error'); return; }
-    storage.updateGroup(editGroup.id, editForm);
+    groupsApi.update(editGroup.id, editForm).then(() => { reload(); toast('Groupe modifié', 'success'); }).catch(e => toast('Erreur', 'error'));
     toast('Groupe mis à jour', 'success');
     setEditGroup(null);
     reload();
@@ -73,7 +83,7 @@ export default function Groups() {
 
   const handleDelete = (id) => {
     if (!confirm('Supprimer ce groupe ? Les leads ne seront pas supprimés.')) return;
-    const ok = storage.deleteGroup(id);
+    groupsApi.delete(id).then(() => { reload(); toast('Groupe supprimé', 'success'); }).catch(e => toast('Erreur', 'error')); const ok = true;
     if (!ok) { toast('Impossible de supprimer un groupe intégré', 'error'); return; }
     toast('Groupe supprimé', 'success');
     if (activeGroup === id) setActiveGroup(null);
@@ -81,13 +91,13 @@ export default function Groups() {
   };
 
   const moveLeadToGroup = (leadId, groupId) => {
-    storage.updateLead(leadId, { group_id: groupId || null }, user?.id);
+    leadsApi.update(leadId, { group_id: groupId || null }).then(() => reload()).catch(e => toast('Erreur', 'error'));
     reload();
   };
 
   const handleDeleteLead = (leadId) => {
     if (!confirm('Supprimer ce prospect définitivement ?')) return;
-    storage.deleteLead(leadId);
+    leadsApi.delete(leadId).then(() => reload()).catch(e => toast('Erreur', 'error'));
     setSelectedLeads(prev => { const s = new Set(prev); s.delete(leadId); return s; });
     reload();
     toast('Prospect supprimé', 'success');
@@ -96,10 +106,7 @@ export default function Groups() {
   const handleBulkDeleteLeads = () => {
     if (selectedLeads.size === 0) return;
     if (!confirm(`Supprimer ${selectedLeads.size} prospect(s) définitivement ?`)) return;
-    selectedLeads.forEach(id => storage.deleteLead(id));
-    setSelectedLeads(new Set());
-    reload();
-    toast(`${selectedLeads.size > 1 ? selectedLeads.size + ' prospects supprimés' : 'Prospect supprimé'}`, 'success');
+    leadsApi.deleteMultiple(Array.from(selectedLeads)).then(() => { reload(); setSelectedLeads(new Set()); toast('Prospects supprimés', 'success'); }).catch(e => toast('Erreur suppression', 'error'));
   };
 
   const toggleSelectLead = (id) => {
@@ -125,7 +132,7 @@ export default function Groups() {
   };
 
   const openExportModal = () => {
-    const allStatuses = storage.getStatuses();
+    const allStatuses = statuses;
     const allSources  = [...new Set(leads.map(l => l.source).filter(Boolean))].sort();
     setExportSelectedGroups(new Set(groups.map(g => g.id)));
     setExportSelectedStatuses(new Set(allStatuses.map(s => s.id)));
@@ -193,7 +200,7 @@ export default function Groups() {
   const handleExport = () => {
     setShowExportModal(false);
     const [users, setUsers] = useState([]); useEffect(() => { usersApi.list().then(res => setUsers(res.data || [])).catch(() => {}); }, []);
-    const statuses = storage.getStatuses();
+    // statuses déjà chargé
     const date     = new Date().toISOString().slice(0, 10);
     const fileName = `groupes_export_${date}.${exportFormat}`;
 
@@ -323,7 +330,7 @@ export default function Groups() {
                     {user?.role === 'admin' && (
                       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
                         <button className="btn btn-ghost btn-icon btn-sm" title="Importer CSV"
-                          onClick={() => { setImportGroup(g); setImportResult(null); setImportSource(''); }}>
+                          onClick={() => setImportGroup(g)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         </button>
                         {!g.builtin && (
@@ -618,7 +625,7 @@ export default function Groups() {
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {exportStep === 'confirm' && (() => {
-                const allStatuses = storage.getStatuses();
+                const allStatuses = statuses;
                 const allSources  = [...new Set(leads.map(l => l.source).filter(Boolean))].sort();
                 const matchLead   = (l) => exportSelectedStatuses.has(l.status) && exportSelectedSources.has(l.source || '');
                 const exportTotal = groups.filter(g => exportSelectedGroups.has(g.id)).reduce((n, g) => n + (groupLeads[g.id] || []).filter(matchLead).length, 0);
@@ -681,7 +688,7 @@ export default function Groups() {
                 );
               })()}
               {exportStep === 'filter' && (() => {
-                const allStatuses = storage.getStatuses();
+                const allStatuses = statuses;
                 const allSources  = [...new Set(leads.map(l => l.source).filter(Boolean))].sort();
                 const matchLead   = (l) => exportSelectedStatuses.has(l.status) && exportSelectedSources.has(l.source || '');
                 const exportTotal = groups
@@ -858,7 +865,7 @@ export default function Groups() {
 
 // Inline status badge (évite import circulaire)
 function StatusBadge({ status }) {
-  const statuses = storage.getStatuses();
+  // statuses déjà chargé
   const s = statuses.find(x => x.id === status);
   const color = s?.color || '#8e8e93';
   const label = s?.label || status || '—';

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import storage from '../services/storage';
+import { remindersApi, leadsApi } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const ReminderContext = createContext(null);
@@ -38,7 +39,7 @@ export function ReminderProvider({ children }) {
   const alertIdRef = useRef(0);
 
   const reload = useCallback(() => {
-    setReminders(storage.getReminders());
+    remindersApi.list().then(res => setReminders(res.data || [])).catch(e => console.error(e));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -55,7 +56,9 @@ export function ReminderProvider({ children }) {
     const check = () => {
       if (!user) return;
       const now = new Date();
-      const pending = storage.getReminders().filter(r =>
+      // Filtrage fait sur reminders state
+    if (!Array.isArray(reminders)) return;
+      const pending = reminders.filter(r =>
         r.status === 'pending' && r.agent_id === user.id
       );
       let dirty = false;
@@ -65,15 +68,15 @@ export function ReminderProvider({ children }) {
         const scheduled = new Date(r.scheduled_at);
         const diff = scheduled - now; // ms
 
-        // Pre-alert: within the 15-minute window (between 16min and 0min before)
-        if (!r.notified_pre && diff > 0 && diff <= 16 * 60 * 1000) {
-          storage.updateReminder(r.id, { notified_pre: true });
+        // Pre-alert: 15 minutes before (window 14-16 min)
+        if (!r.notified_pre && diff > 14 * 60 * 1000 && diff <= 16 * 60 * 1000) {
+          remindersApi.update(r.id, { notified_pre: true });
           newAlerts.push({ alertId: ++alertIdRef.current, type: 'pre', reminder: { ...r, notified_pre: true } });
           dirty = true;
         }
-        // Main alert: overdue and not yet notified
-        if (!r.notified_main && diff <= 0) {
-          storage.updateReminder(r.id, { notified_main: true });
+        // Main alert: 1 minute before (window 0-2 min)
+        if (!r.notified_main && diff > 0 && diff <= 2 * 60 * 1000) {
+          remindersApi.update(r.id, { notified_main: true });
           newAlerts.push({ alertId: ++alertIdRef.current, type: 'main', reminder: { ...r, notified_main: true } });
           dirty = true;
         }
@@ -93,7 +96,7 @@ export function ReminderProvider({ children }) {
 
   const scheduleReminder = useCallback((lead, { date, time, note }) => {
     if (!user) return;
-    storage.createReminder({
+    remindersApi.create({
       lead_id: lead.id,
       lead_name: [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '—',
       lead_phone: lead.phone || '',
@@ -114,7 +117,7 @@ export function ReminderProvider({ children }) {
       const alert = prev.find(a => a.alertId === alertId);
       if (!alert) return prev;
       const newTime = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-      storage.updateReminder(alert.reminder.id, {
+      remindersApi.update(alert.reminder.id, {
         scheduled_at: newTime,
         notified_pre: false,
         notified_main: false,
@@ -125,19 +128,19 @@ export function ReminderProvider({ children }) {
   }, [reload]);
 
   const markDone = useCallback((reminderId, leadId) => {
-    storage.updateReminder(reminderId, {
+    remindersApi.update(reminderId, {
       status: 'done',
       done_at: new Date().toISOString(),
     });
     if (leadId) {
-      storage.updateLead(leadId, { status: 'en_cours' }, user?.id);
+      leadsApi.update(leadId, { status: 'en_cours' });
     }
     setActiveAlerts(prev => prev.filter(a => a.reminder.id !== reminderId));
     reload();
   }, [user, reload]);
 
   const cancelReminder = useCallback((reminderId) => {
-    storage.updateReminder(reminderId, { status: 'cancelled' });
+    remindersApi.update(reminderId, { status: 'cancelled' });
     setActiveAlerts(prev => prev.filter(a => a.reminder.id !== reminderId));
     reload();
   }, [reload]);

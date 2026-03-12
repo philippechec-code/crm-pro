@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useReminders } from '../contexts/ReminderContext';
 import storage from '../services/storage';
-import { usersApi } from '../services/api';
+import { leadsApi, groupsApi, usersApi, statusesApi } from '../services/api';
 import StatusSelect from '../components/StatusSelect';
 import AgentSelect from '../components/AgentSelect';
 import { StatusManagerModal } from './Leads';
@@ -58,9 +58,9 @@ export default function Dashboard() {
   const [statuses, setStatuses] = useState([]);
 
   function reload() {
-    setLeads(storage.getLeads());
+    leadsApi.list().then(res => setLeads(res.data?.leads || [])).catch(e => console.error(e));
     usersApi.list().then(res => setUsers(res.data || [])).catch(() => setUsers([]));
-    setStatuses(storage.getStatuses());
+    statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
   }
 
   useEffect(() => { reload(); }, []);
@@ -73,8 +73,8 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const byStatus = {};
-    statuses.forEach(s => { byStatus[s.id] = 0; });
-    myLeads.forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+    (Array.isArray(statuses) ? statuses : []).forEach(s => { byStatus[s.id] = 0; });
+    (Array.isArray(myLeads) ? myLeads : []).forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
     const week = new Date(Date.now() - 7 * 24 * 3600 * 1000);
     return {
       total: myLeads.length,
@@ -212,7 +212,7 @@ function AdminDashboard({ leads, users, statuses, stats, myLeads, reload, user, 
                       <td className="td-muted col-email">{l.email || '—'}</td>
                       <td onClick={e => e.stopPropagation()}>
                         <StatusSelect value={l.status} onChange={s => {
-                          storage.updateLead(l.id, { status: s }, user?.id); reload(); toast('Statut mis à jour', 'success');
+                          leadsApi.update(l.id, { status: s }).then(() => { reload(); toast('Statut mis à jour', 'success'); }).catch(e => toast('Erreur', 'error'));
                           if (s === 'rappel') window.dispatchEvent(new CustomEvent('crm:open-scheduler', { detail: { lead: l } }));
                         }} />
                       </td>
@@ -249,7 +249,7 @@ function SourceConversionChart({ leads }) {
       return d >= from && d <= to;
     });
     const map = {};
-    inRange.forEach(l => {
+    (Array.isArray(inRange) ? inRange : []).forEach(l => {
       const src = l.source?.trim() || 'Non renseignée';
       if (!map[src]) map[src] = { total: 0, converted: 0 };
       map[src].total++;
@@ -258,7 +258,7 @@ function SourceConversionChart({ leads }) {
 
     // compute all-time totals per source
     const allTime = {};
-    leads.forEach(l => {
+    (Array.isArray(leads) ? leads : []).forEach(l => {
       const src = l.source?.trim() || 'Non renseignée';
       if (!allTime[src]) allTime[src] = { total: 0, converted: 0 };
       allTime[src].total++;
@@ -369,7 +369,7 @@ function SourceConversionChart({ leads }) {
 function AllTimeSourceSummary({ leads }) {
   const data = useMemo(() => {
     const map = {};
-    leads.forEach(l => {
+    (Array.isArray(leads) ? leads : []).forEach(l => {
       const src = l.source?.trim() || 'Non renseignée';
       if (!map[src]) map[src] = { total: 0, converted: 0 };
       map[src].total++;
@@ -418,8 +418,8 @@ function AgentActivityTable({ leads, users, statuses }) {
   // Calcule pour une plage de semaine le nombre de leads traités par agent
   function computeActivity(weekRange) {
     const result = {};
-    agents.forEach(a => { result[a.id] = { count: 0, byStatus: {} }; });
-    leads.forEach(lead => {
+    (Array.isArray(agents) ? agents : []).forEach(a => { result[a.id] = { count: 0, byStatus: {} }; });
+    (Array.isArray(leads) ? leads : []).forEach(lead => {
       if (!Array.isArray(lead.history)) return;
       const wh = lead.history.filter(h => {
         const d = new Date(h.created_at);
@@ -573,7 +573,8 @@ function AgentActivityTable({ leads, users, statuses }) {
 ───────────────────────────────────────────────────────────── */
 function AgentDashboard({ statuses, myLeads, reload, user }) {
   const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const groups = useMemo(() => storage.getGroups(), []);
+  const [groups, setGroups] = useState([]);
+  useEffect(() => { groupsApi.list().then(res => setGroups(res.data || [])).catch(() => {}); }, []);
   const firstName = user?.full_name?.split(' ')[0] || 'Agent';
   const { reminders, snoozeAlert, markDone, cancelReminder } = useReminders();
   const navigate = useNavigate();
@@ -581,7 +582,7 @@ function AgentDashboard({ statuses, myLeads, reload, user }) {
   // Leads par groupe
   const leadsByGroup = useMemo(() => {
     const map = {};
-    groups.forEach(g => { map[g.id] = myLeads.filter(l => l.group_id === g.id); });
+    (Array.isArray(groups) ? groups : []).forEach(g => { map[g.id] = myLeads.filter(l => l.group_id === g.id); });
     return map;
   }, [myLeads, groups]);
 
@@ -607,8 +608,8 @@ function AgentDashboard({ statuses, myLeads, reload, user }) {
               const gLeads   = leadsByGroup[g.id] || [];
               const sources  = [...new Set(gLeads.map(l => l.source).filter(Boolean))].sort();
               const byStatus = {};
-              statuses.forEach(s => { byStatus[s.id] = 0; });
-              gLeads.forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+              (Array.isArray(statuses) ? statuses : []).forEach(s => { byStatus[s.id] = 0; });
+              (Array.isArray(gLeads) ? gLeads : []).forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
               const week = new Date(Date.now() - 7 * 24 * 3600 * 1000);
               const newCount = gLeads.filter(l => new Date(l.created_at) >= week).length;
 
@@ -729,14 +730,14 @@ function GroupLeadList({ group, groupLeads, statuses, user, reload, onBack }) {
 
   const handleAddStatus = () => {
     if (!newStatus.label.trim()) { toast('Nom du statut requis', 'error'); return; }
-    const res = storage.createStatus(newStatus);
+    toast('Les statuts sont prédéfinis', 'info'); const res = null;
     if (!res) { toast('Ce statut existe déjà', 'error'); return; }
     toast('Statut créé', 'success');
     setNewStatus({ label: '', color: '#60a5fa' });
     reload();
   };
   const handleDeleteStatus = (id) => {
-    const ok = storage.deleteStatus(id);
+    toast('Les statuts sont prédéfinis', 'info'); const ok = false;
     if (!ok) { toast('Erreur lors de la suppression', 'error'); return; }
     toast('Statut supprimé', 'success');
     reload();
@@ -802,8 +803,8 @@ function GroupLeadList({ group, groupLeads, statuses, user, reload, onBack }) {
 
   const groupStats = useMemo(() => {
     const byStatus = {};
-    statuses.forEach(s => { byStatus[s.id] = 0; });
-    groupLeads.forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+    (Array.isArray(statuses) ? statuses : []).forEach(s => { byStatus[s.id] = 0; });
+    (Array.isArray(groupLeads) ? groupLeads : []).forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
     const week = new Date(Date.now() - 7 * 24 * 3600 * 1000);
     return { total: groupLeads.length, newThisWeek: groupLeads.filter(l => new Date(l.created_at) >= week).length, byStatus };
   }, [groupLeads, statuses]);
@@ -1008,7 +1009,7 @@ function GroupLeadList({ group, groupLeads, statuses, user, reload, onBack }) {
                       <td className="col-email" style={{ color: statusColor, opacity: 0.8 }}>{l.email || '—'}</td>
                       <td onClick={e => e.stopPropagation()}>
                         <StatusSelect value={l.status} onChange={s => {
-                          storage.updateLead(l.id, { status: s }, user?.id); reload(); toast('Statut mis à jour', 'success');
+                          leadsApi.update(l.id, { status: s }).then(() => { reload(); toast('Statut mis à jour', 'success'); }).catch(e => toast('Erreur', 'error'));
                           if (s === 'rappel') window.dispatchEvent(new CustomEvent('crm:open-scheduler', { detail: { lead: l } }));
                         }} />
                       </td>
@@ -1019,7 +1020,7 @@ function GroupLeadList({ group, groupLeads, statuses, user, reload, onBack }) {
                         }
                       </td>
                       <td style={{ maxWidth: 220, padding: '4px 8px' }} onClick={e => e.stopPropagation()}>
-                        <InlineComment lead={l} onSave={(val) => { storage.updateLead(l.id, { comment: val }, user?.id); reload(); }} />
+                        <InlineComment lead={l} onSave={(val) => { leadsApi.update(l.id, { comment: val }).then(() => reload()).catch(e => toast('Erreur', 'error')); }} />
                       </td>
                       <td className="td-muted col-date">{new Date(l.created_at).toLocaleDateString('fr-FR')}</td>
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -1093,7 +1094,8 @@ function GroupLeadList({ group, groupLeads, statuses, user, reload, onBack }) {
           onClose={() => setShowStatuses(false)}
           onAdd={handleAddStatus}
           onDelete={handleDeleteStatus}
-          onUpdate={(id, patch) => { storage.updateStatus(id, patch); reload(); }}
+          onUpdate={(id, patch) => { // Statuts en lecture seule
+          reload(); }}
           newStatus={newStatus}
           setNewStatus={setNewStatus}
         />

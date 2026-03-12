@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import storage from '../services/storage';
+import { logsApi } from '../services/api';
 import Toast from '../components/Toast';
 
 function toast(msg, type = 'info') {
@@ -21,12 +22,12 @@ export default function Logs() {
   const [filterUser, setFilterUser] = useState('');
   const [filterRole, setFilterRole] = useState('');
 
-  function reload() { setLogs(storage.getLogs()); }
+  function reload() { logsApi.list().then(res => setLogs(res.data || [])).catch(e => console.error(e)); }
   useEffect(() => { reload(); }, []);
 
   const handleClear = () => {
     if (!confirm('Effacer tous les logs de connexion ?')) return;
-    storage.clearLogs();
+    logsApi.clear().then(() => reload()).catch(e => console.error(e));
     toast('Logs effacés', 'success');
     reload();
   };

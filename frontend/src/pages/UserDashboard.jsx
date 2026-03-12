@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import storage from '../services/storage';
+import { leadsApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function UserDashboard(){
@@ -8,14 +9,14 @@ export default function UserDashboard(){
   const [selected, setSelected] = useState(null);
 
   useEffect(()=>{
-    storage.initStorage();
-    const all = storage.getLeads();
+    // Init via API
+    leadsApi.list().then(res => { const all = res.data?.leads || []; setLeads(all.filter(l => l.assigned_to === user?.id)); }).catch(e => console.error(e)); const all = [];
     setLeads(all.filter(l=> l.assigned_to === (user?.id) ));
   },[user]);
 
-  const refresh = ()=> setLeads(storage.getLeads().filter(l=> l.assigned_to === (user?.id)));
+  const refresh = () => leadsApi.list().then(res => setLeads((res.data?.leads || []).filter(l => l.assigned_to === user?.id))).catch(e => console.error(e));
 
-  const changeStatus = (id, status)=>{ storage.updateLead(id, { status }, user?.id); refresh(); };
+  const changeStatus = (id, status)=>{ leadsApi.update(id, { status }).then(() => refresh()).catch(e => console.error(e)); };
 
   return (
     <div>

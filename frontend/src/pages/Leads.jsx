@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import storage from '../services/storage';
-import { usersApi } from '../services/api';
+import { leadsApi, groupsApi, usersApi, statusesApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import StatusSelect from '../components/StatusSelect';
 import AgentSelect from '../components/AgentSelect';
@@ -77,7 +77,7 @@ export default function Leads() {
 
   const submitComment = () => {
     if (!commentText.trim()) return;
-    storage.addCommentToLead(commentingId, commentText.trim(), user?.id);
+    leadsApi.addComment(commentingId, commentText.trim()).then(() => { reload(); toast("Commentaire ajouté", "success"); }).catch(e => toast("Erreur", "error"));
     toast('Commentaire ajouté', 'success');
     closeComment();
     reload();
@@ -88,9 +88,9 @@ export default function Leads() {
   }
 
   function reload(){
-    setLeads(storage.getLeads());
+    leadsApi.list().then(res => setLeads(res.data?.leads || [])).catch(e => console.error(e));
     usersApi.list().then(res => setUsers(res.data || [])).catch(() => setUsers([]));
-    setStatuses(storage.getStatuses());
+    statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
   }
 
   useEffect(() => {
@@ -106,8 +106,8 @@ export default function Leads() {
   // KPI stats
   const stats = useMemo(() => {
     const byStatus = {};
-    statuses.forEach(s => { byStatus[s.id] = 0; });
-    myLeads.forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+    (statuses || []).forEach(s => { byStatus[s.id] = 0; });
+    (myLeads || []).forEach(l => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
     const week = new Date(Date.now() - 7 * 24 * 3600 * 1000);
     return {
       total: myLeads.length,
@@ -152,7 +152,7 @@ export default function Leads() {
   // Delete
   const handleDelete = (id) => {
     if (!confirm('Supprimer ce prospect définitivement ?')) return;
-    storage.deleteLead(id);
+    leadsApi.delete(id).then(() => reload()).catch(e => toast("Erreur suppression", "error"));
     setSelected(s => { const n = new Set(s); n.delete(id); return n; });
     toast('Prospect supprimé', 'success');
     reload();
@@ -161,7 +161,7 @@ export default function Leads() {
   const handleBulkDelete = () => {
     const n = selected.size;
     if (!confirm(`Supprimer ${n} prospect${n > 1 ? 's' : ''} définitivement ? Cette action est irréversible.`)) return;
-    [...selected].forEach(id => storage.deleteLead(id));
+    Promise.all([...selected].map(id => leadsApi.delete(id))).then(() => { reload(); setSelected(new Set()); toast('Prospects supprimés', 'success'); }).catch(e => toast('Erreur', 'error'));
     setSelected(new Set());
     toast(`${n} prospect${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`, 'success');
     reload();
@@ -173,10 +173,10 @@ export default function Leads() {
     const ids = [...selected];
     if (userId === 'auto') {
       const agents = users.filter(u => u.role !== 'admin').map(u => u.id);
-      storage.roundRobinAssign(ids, agents, user?.id);
+      Promise.all(ids.map((id, i) => leadsApi.update(id, { assigned_to: agents[i % agents.length] }))).then(() => reload()).catch(e => toast('Erreur', 'error'));
       toast('Répartition automatique effectuée', 'success');
     } else {
-      ids.forEach(id => storage.assignLead(id, userId || null, user?.id));
+      Promise.all(ids.map(id => leadsApi.update(id, { assigned_to: userId || null }))).then(() => reload()).catch(e => toast('Erreur', 'error'));
       toast('Assignation groupée effectuée', 'success');
     }
     reload();
@@ -188,7 +188,7 @@ export default function Leads() {
     if (!createForm.first_name && !createForm.last_name) {
       toast('Nom requis', 'error'); return;
     }
-    storage.createLead(createForm, user?.id);
+    leadsApi.create(createForm).then(() => { reload(); toast("Prospect créé", "success"); }).catch(e => toast("Erreur création", "error"));
     toast('Prospect créé', 'success');
     setCreateForm(EMPTY_FORM);
     setShowCreate(false);
@@ -198,17 +198,17 @@ export default function Leads() {
   // Status management
   const handleAddStatus = () => {
     if (!newStatus.label.trim()) { toast('Nom du statut requis', 'error'); return; }
-    const res = storage.createStatus(newStatus);
+    toast('Les statuts sont prédéfinis et ne peuvent pas être modifiés', 'info'); const res = null;
     if (!res) { toast('Ce statut existe déjà', 'error'); return; }
     toast('Statut créé', 'success');
     setNewStatus({ label: '', color: '#60a5fa' });
-    setStatuses(storage.getStatuses());
+    statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
   };
   const handleDeleteStatus = (id) => {
-    const ok = storage.deleteStatus(id);
+    toast('Les statuts sont prédéfinis et ne peuvent pas être supprimés', 'info'); const ok = false;
     if (!ok) { toast('Erreur lors de la suppression', 'error'); return; }
     toast('Statut supprimé', 'success');
-    setStatuses(storage.getStatuses());
+    statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
   };
 
   const getUserName = (id) => {
@@ -405,7 +405,7 @@ export default function Leads() {
                     <StatusSelect
                       value={l.status}
                       onChange={(newStatus) => {
-                        storage.updateLead(l.id, { status: newStatus }, user?.id);
+                        leadsApi.update(l.id, { status: newStatus }).then(() => reload()).catch(e => toast("Erreur", "error"));
                         reload();
                         toast(`Statut mis à jour`, 'success');
                         if (newStatus === 'rappel') window.dispatchEvent(new CustomEvent('crm:open-scheduler', { detail: { lead: l } }));
@@ -423,7 +423,7 @@ export default function Leads() {
                       <AgentSelect
                         value={l.assigned_to}
                         onChange={(agentId) => {
-                          storage.assignLead(l.id, agentId, user?.id);
+                          leadsApi.update(l.id, { assigned_to: agentId }).then(() => reload()).catch(e => toast("Erreur", "error"));
                           reload();
                           toast('Agent mis à jour', 'success');
                         }}
@@ -553,7 +553,7 @@ export default function Leads() {
           onClose={() => setShowStatuses(false)}
           onAdd={handleAddStatus}
           onDelete={handleDeleteStatus}
-          onUpdate={(id, patch) => { storage.updateStatus(id, patch); setStatuses(storage.getStatuses()); }}
+          onUpdate={(id, patch) => { statusesApi.update(id, patch).then(() => statusesApi.list().then(res => setStatuses(res.data || []))).catch(e => console.error(e)); }}
           newStatus={newStatus}
           setNewStatus={setNewStatus}
         />

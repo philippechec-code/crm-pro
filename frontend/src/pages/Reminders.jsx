@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useReminders } from '../contexts/ReminderContext';
 import storage from '../services/storage';
+import { remindersApi } from '../services/api';
 import { usersApi } from '../services/api';
 import Toast from '../components/Toast';
 
@@ -39,7 +40,7 @@ export default function Reminders() {
     const now = new Date();
     const all = reminders;
     const agentStats = {};
-    users.forEach(u => {
+    (users || []).forEach(u => {
       const agRem = all.filter(r => r.agent_id === u.id);
       agentStats[u.id] = {
         name: u.full_name || u.email,
@@ -66,7 +67,7 @@ export default function Reminders() {
     if (!customSnooze.date || !customSnooze.time) return;
     const dt = new Date(`${customSnooze.date}T${customSnooze.time}`);
     if (isNaN(dt.getTime()) || dt <= new Date()) { toast('Date invalide ou passée', 'error'); return; }
-    storage.updateReminder(remId, {
+    remindersApi.update(remId, {
       scheduled_at: dt.toISOString(),
       notified_pre: false,
       notified_main: false,
@@ -79,7 +80,7 @@ export default function Reminders() {
 
   const handleQuickSnooze = (remId, mins) => {
     const dt = new Date(Date.now() + mins * 60000);
-    storage.updateReminder(remId, {
+    remindersApi.update(remId, {
       scheduled_at: dt.toISOString(),
       notified_pre: false,
       notified_main: false,

@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import storage from '../services/storage';
+const STATUSES = [
+  { id: 'nouveau', label: 'Nouveau', color: '#0a84ff' },
+  { id: 'en_cours', label: 'En cours', color: '#ff9f0a' },
+  { id: 'rappel', label: 'Rappel', color: '#bf5af2' },
+  { id: 'interesse', label: 'Intéressé', color: '#30d158' },
+  { id: 'vendu', label: 'Vendu', color: '#00c7be' },
+  { id: 'pas_interesse', label: 'Pas intéressé', color: '#ff453a' },
+  { id: 'sans_reponse', label: 'Sans réponse', color: '#8e8e93' },
+];
 
 const STATUS_ICONS = {
   nouveau:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
@@ -14,7 +22,7 @@ const GENERIC_DOT = <svg viewBox="0 0 24 24" fill="currentColor" width="8" heigh
 
 export default function StatusSelect({ value, onChange }) {
   const [open, setOpen]         = useState(false);
-  const [statuses, setStatuses] = useState(() => storage.getStatuses());
+  const [statuses, setStatuses] = useState(STATUSES);
   const [hovered, setHovered]   = useState(null);
   const [pos, setPos]           = useState({ top: 0, left: 0 });
   const btnRef  = useRef(null);
@@ -22,7 +30,7 @@ export default function StatusSelect({ value, onChange }) {
 
   // Reload statuses when closed (picks up new ones added)
   useEffect(() => {
-    if (!open) setStatuses(storage.getStatuses());
+    // Statuts statiques
   }, [open]);
 
   // Close on outside click only — no scroll listener

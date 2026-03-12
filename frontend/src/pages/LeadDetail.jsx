@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import storage from '../services/storage';
+import { leadsApi, statusesApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import StatusSelect from '../components/StatusSelect';
@@ -29,10 +30,10 @@ export default function LeadDetail(){
   }
 
   function reload(){
-    const l = storage.findLeadById(id);
+    // Chargé via useEffect async
     if (!l) { navigate('/leads'); return; }
     setLead(l);
-    setStatuses(storage.getStatuses());
+    statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
     setForm({
       first_name: l.first_name || '',
       last_name:  l.last_name  || '',
@@ -55,14 +56,14 @@ export default function LeadDetail(){
   };
 
   const save = () => {
-    storage.updateLead(id, form, user?.id);
+    leadsApi.update(id, form).then(() => toast('Prospect mis à jour', 'success')).catch(e => toast('Erreur', 'error'));
     toast('Prospect mis à jour', 'success');
     reload();
   };
 
   const addComment = () => {
     if (!comment.trim()) return;
-    storage.addCommentToLead(id, comment.trim(), user?.id);
+    leadsApi.addComment(id, comment.trim()).then(() => reload()).catch(e => toast('Erreur', 'error'));
     setComment('');
     toast('Commentaire ajouté', 'success');
     reload();
@@ -70,7 +71,7 @@ export default function LeadDetail(){
 
   const deleteLead = () => {
     if (!confirm('Supprimer ce prospect définitivement ?')) return;
-    storage.deleteLead(id);
+    leadsApi.delete(id).then(() => { toast('Supprimé', 'success'); navigate('/leads'); }).catch(e => toast('Erreur', 'error'));
     navigate('/leads');
   };
 
@@ -183,7 +184,7 @@ export default function LeadDetail(){
                     value={form.status}
                     onChange={(newStatus) => {
                       setForm(f => ({ ...f, status: newStatus }));
-                      storage.updateLead(id, { status: newStatus }, user?.id);
+                      leadsApi.update(id, { status: newStatus }).then(() => reload()).catch(e => toast('Erreur', 'error'));
                       toast('Statut mis à jour', 'success');
                       reload();
                       if (newStatus === 'rappel') {
