@@ -14,6 +14,8 @@ const groupsRoutes   = require('./src/routes/groups');
 const statsRoutes    = require('./src/routes/stats');
 const usersRoutes    = require('./src/routes/users');
 const securityRoutes = require('./src/routes/security');
+const remindersRoutes = require('./src/routes/reminders');
+const logsRoutes = require('./src/routes/logs');
 
 // Valeurs par défaut pour le développement local
 process.env.JWT_SECRET     = process.env.JWT_SECRET     || 'dev-secret-change-me';
@@ -61,6 +63,8 @@ app.use('/api/groups',   groupsRoutes);
 app.use('/api/stats',    statsRoutes);
 app.use('/api/users',    usersRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/reminders', remindersRoutes);
+app.use('/api/logs', logsRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

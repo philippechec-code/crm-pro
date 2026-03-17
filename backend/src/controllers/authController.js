@@ -71,6 +71,17 @@ const login = async (req, res) => {
 
     await logEvent('login_success', { ip, userId: user.id, username: user.username });
 
+    // Enregistrer dans login_logs
+    const userAgent = req.headers['user-agent'] || '';
+    const browser = userAgent.includes('Chrome') ? 'Chrome' : userAgent.includes('Firefox') ? 'Firefox' : userAgent.includes('Safari') ? 'Safari' : 'Autre';
+    const os = userAgent.includes('Windows') ? 'Windows' : userAgent.includes('Mac') ? 'MacOS' : userAgent.includes('Linux') ? 'Linux' : 'Autre';
+    
+    await query(
+      `INSERT INTO login_logs (user_id, user_name, user_email, user_role, browser, os, user_agent, logged_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [user.id, user.full_name || user.username, user.email, user.role, browser, os, userAgent]
+    );
+
     res.json({
       token,
       user: { id: user.id, username: user.username, email: user.email, role: user.role, full_name: user.full_name },

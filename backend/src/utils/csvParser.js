@@ -1,88 +1,58 @@
-const { parse } = require('csv-parse');
-const { Readable } = require('stream');
-
-/**
- * Détecte le délimiteur (virgule ou point-virgule) d'un CSV
- */
 const detectDelimiter = (sample) => {
   const semicolons = (sample.match(/;/g) || []).length;
   const commas = (sample.match(/,/g) || []).length;
   return semicolons > commas ? ';' : ',';
 };
 
-/**
- * Normalise les noms de colonnes du CSV vers les champs internes
- */
-const COLUMN_MAP = {
-  // Prénom
-  prenom: 'first_name', prénom: 'first_name', firstname: 'first_name',
-  first_name: 'first_name', 'first name': 'first_name',
-  // Nom
-  nom: 'last_name', lastname: 'last_name', last_name: 'last_name',
-  'last name': 'last_name', name: 'last_name',
-  // Téléphone
-  telephone: 'phone', téléphone: 'phone', tel: 'phone', phone: 'phone',
-  mobile: 'phone', portable: 'phone', 'numéro': 'phone', numero: 'phone',
-  // Email
-  email: 'email', mail: 'email', 'e-mail': 'email', courriel: 'email',
-  // Adresse
-  adresse: 'address', address: 'address',
-  // Ville
-  ville: 'city', city: 'city',
-  // Code postal
-  'code postal': 'postal_code', codepostal: 'postal_code',
-  cp: 'postal_code', postal_code: 'postal_code', zip: 'postal_code',
-  // Source
-  source: 'source', origine: 'source', origin: 'source',
-  // Commentaire
-  commentaire: 'comment', comment: 'comment', note: 'comment', notes: 'comment',
-  // Statut
-  statut: 'status', status: 'status',
-};
-
-const normalizeColumnName = (col) => {
-  const lower = col.toLowerCase().trim().replace(/[^a-zàâçéèêëîïôûùüÿñ0-9 _-]/g, '');
-  return COLUMN_MAP[lower] || null;
-};
-
-/**
- * Parse un buffer CSV et retourne un tableau d'objets normalisés
- */
 const parseCSV = (buffer) => {
-  return new Promise((resolve, reject) => {
-    const content = buffer.toString('utf-8');
-    const sample = content.substring(0, 1000);
-    const delimiter = detectDelimiter(sample);
-
+  return new Promise((resolve) => {
+    const content = buffer.toString('utf-8').replace(/^\uFEFF/, ''); // Remove BOM
+    const lines = content.trim().split(/\r?\n/).filter(l => l.trim());
+    
+    
+    const delimiter = detectDelimiter(content);
+    
     const records = [];
-    const stream = Readable.from(buffer);
-
-    stream.pipe(
-      parse({
-        delimiter,
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-        bom: true,
-        relax_quotes: true,
-        relax_column_count: true,
-      })
-    )
-      .on('data', (row) => {
-        const normalized = {};
-        for (const [key, value] of Object.entries(row)) {
-          const mappedKey = normalizeColumnName(key);
-          if (mappedKey && value && String(value).trim()) {
-            normalized[mappedKey] = String(value).trim();
+    
+    for (const line of lines) {
+      const parts = line.split(delimiter).map(p => p.trim().replace(/^"|"$/g, ''));
+      
+      const record = { first_name: '', last_name: '', phone: '', email: '', source: '' };
+      
+      for (const part of parts) {
+        if (!part) continue;
+        
+        // Email
+        if (part.includes('@') && part.includes('.')) {
+          record.email = part.toLowerCase();
+        }
+        // Téléphone (chiffres, espaces, +, au moins 9 caractères)
+        else if (/^[\d\s\+\.\-]{9,}$/.test(part)) {
+          record.phone = part;
+        }
+        // Source (majuscules, court)
+        else if (part === part.toUpperCase() && part.length <= 20 && /^[A-Z\s]+$/.test(part)) {
+          record.source = part;
+        }
+        // Nom (contient des lettres, pas d'email ni téléphone)
+        else if (/[a-zA-ZÀ-ÿ]/.test(part) && !record.last_name) {
+          const nameParts = part.split(/\s+/);
+          if (nameParts.length >= 2) {
+            record.first_name = nameParts[0];
+            record.last_name = nameParts.slice(1).join(' ');
+          } else {
+            record.last_name = part;
           }
         }
-        // Garder la ligne si elle a au moins un champ utile
-        if (Object.keys(normalized).length > 0) {
-          records.push(normalized);
-        }
-      })
-      .on('end', () => resolve({ records, delimiter }))
-      .on('error', reject);
+      }
+      
+      
+      if (record.phone || record.email || record.last_name) {
+        records.push(record);
+      }
+    }
+    
+    resolve({ records, delimiter });
   });
 };
 

@@ -25,8 +25,8 @@ function ipMatchesCIDR(ip, cidr) {
 async function getActiveIPs() {
   if (_cache !== null && Date.now() - _cacheTs < CACHE_TTL) return _cache;
   try {
-    const result = await query('SELECT ip FROM ip_whitelist WHERE actif = true');
-    _cache  = result.rows.map(r => r.ip);
+    const result = await query('SELECT ip_address FROM ip_whitelist WHERE actif = true');
+    _cache  = result.rows.map(r => r.ip_address);
     _cacheTs = Date.now();
     return _cache;
   } catch {

@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { previewCSV } from '../services/storage';
-import { leadsApi } from '../services/api';
+import { leadsApi, usersApi } from '../services/api';
 
 const LEAD_FIELDS = [
   { value: '', label: '— Ignorer —' },
@@ -25,10 +25,13 @@ export default function CSVImportModal({ groups, onClose }) {
   const [mapping, setMapping] = useState({});
   const [groupId, setGroupId] = useState(groups[0]?.id || '');
   const [source, setSource] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [users, setUsers] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef();
+  useEffect(() => { usersApi.list().then(r => setUsers(r.data || [])).catch(() => {}); }, []);
 
   const processFile = useCallback(async (f) => {
     if (!f || !f.name.match(/\.csv$/i)) { setError('Fichier CSV uniquement'); return; }
@@ -56,6 +59,7 @@ export default function CSVImportModal({ groups, onClose }) {
       formData.append('file', file);
       if (groupId) formData.append('group_id', groupId);
       if (source) formData.append('source', source);
+      if (assignedTo) formData.append('assigned_to', assignedTo);
       const res = await leadsApi.importCSV(formData);
       setResult({ imported: res.data.imported || 0, duplicates: res.data.duplicates || 0, message: res.data.message });
       setStep('result');
@@ -102,6 +106,7 @@ export default function CSVImportModal({ groups, onClose }) {
               <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 <div style={{ flex: 1 }}><div style={label}>Groupe</div><select value={groupId} onChange={e => setGroupId(e.target.value)} style={select}><option value="">Aucun</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
                 <div style={{ flex: 1 }}><div style={label}>Source</div><select value={source} onChange={e => setSource(e.target.value)} style={select}>{SOURCES.map(s => <option key={s} value={s}>{s || '— Aucune —'}</option>)}</select></div>
+                <div style={{ flex: 1 }}><div style={label}>Assigner à</div><select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={select}><option value="">— Aucun —</option>{users.filter(u => u.role !== 'admin').map(u => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}</select></div>
               </div>
               {error && <div style={{ color: '#ff453a', marginBottom: 12 }}>{error}</div>}
               <button onClick={handleImport} disabled={loading} style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#30d158', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer' }}>{loading ? 'Import...' : 'Importer ' + preview.total + ' prospects'}</button>

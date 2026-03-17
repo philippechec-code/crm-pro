@@ -15,7 +15,7 @@ const EVENT_TYPES = [
 const listIPs = async (req, res) => {
   try {
     const result = await query(
-      `SELECT w.id, w.ip, w.description, w.actif, w.created_at,
+      `SELECT w.id, w.ip_address, w.description, w.actif, w.created_at,
               u.full_name AS created_by_name
        FROM ip_whitelist w
        LEFT JOIN users u ON w.created_by = u.id
@@ -40,7 +40,7 @@ const addIP = async (req, res) => {
 
   try {
     const result = await query(
-      `INSERT INTO ip_whitelist (ip, description, created_by)
+      `INSERT INTO ip_whitelist (ip_address, description, created_by)
        VALUES ($1, $2, $3)
        RETURNING *`,
       [ipTrimmed, description?.trim() || null, req.user.id]
@@ -83,12 +83,12 @@ const updateIP = async (req, res) => {
 const deleteIP = async (req, res) => {
   try {
     const result = await query(
-      'DELETE FROM ip_whitelist WHERE id = $1 RETURNING ip',
+      'DELETE FROM ip_whitelist WHERE id = $1 RETURNING ip_address',
       [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Entrée introuvable' });
     invalidateCache();
-    res.json({ message: `IP ${result.rows[0].ip} supprimée de la whitelist` });
+    res.json({ message: `IP ${result.rows[0].ip_address} supprimée de la whitelist` });
   } catch {
     res.status(500).json({ error: 'Erreur serveur' });
   }

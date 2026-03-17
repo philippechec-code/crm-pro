@@ -38,6 +38,8 @@ export default function Groups() {
   // Leads panel
   const [activeGroup, setActiveGroup] = useState(null);
   const [selectedLeads, setSelectedLeads] = useState(new Set());
+  const [perPage, setPerPage] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // CSV import modal
   const [importGroup, setImportGroup] = useState(null); // group object when modal is open
@@ -63,6 +65,12 @@ export default function Groups() {
     groups.forEach(g => { map[g.id] = leads.filter(l => l.group_id === g.id); });
     return map;
   }, [groups, leads]);
+  const activeGroupLeads = groupLeads[activeGroup] || [];
+  const totalPages = Math.ceil(activeGroupLeads.length / perPage);
+  const paginatedGroupLeads = useMemo(() => {
+    const start = (currentPage - 1) * perPage;
+    return activeGroupLeads.slice(start, start + perPage);
+  }, [activeGroupLeads, currentPage, perPage]);
 
   const handleCreate = () => {
     if (!form.name.trim()) { toast('Nom requis', 'error'); return; }
@@ -383,9 +391,18 @@ export default function Groups() {
                 <div className="card-title" style={{ fontWeight: 700 }}>
                   Prospects — {active?.name}
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {(groupLeads[activeGroup] || []).length} prospect{(groupLeads[activeGroup] || []).length !== 1 ? 's' : ''}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setCurrentPage(1); }} className="filter-select" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                    <option value={150}>150 / page</option>
+                    <option value={200}>200 / page</option>
+                    <option value={500}>500 / page</option>
+                  </select>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {activeGroupLeads.length} prospect{activeGroupLeads.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
               </div>
               {user?.role === 'admin' && (
                 <button className="btn btn-secondary btn-sm" onClick={() => navigate('/leads')}>
@@ -394,7 +411,7 @@ export default function Groups() {
               )}
             </div>
 
-            {(groupLeads[activeGroup] || []).length === 0 ? (
+            {activeGroupLeads.length === 0 ? (
               <div className="empty-state" style={{ padding: '32px 0' }}>
                 <p>Aucun prospect dans ce groupe</p>
               </div>
@@ -427,7 +444,7 @@ export default function Groups() {
                           <th style={{ width: 36 }}>
                             <input
                               type="checkbox"
-                              checked={selectedLeads.size === (groupLeads[activeGroup] || []).length && (groupLeads[activeGroup] || []).length > 0}
+                              checked={selectedLeads.size === activeGroupLeads.length && activeGroupLeads.length > 0}
                               onChange={toggleAllLeads}
                               style={{ cursor: 'pointer' }}
                             />
@@ -443,7 +460,7 @@ export default function Groups() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(groupLeads[activeGroup] || []).map(l => (
+                      {paginatedGroupLeads.map(l => (
                         <tr key={l.id} style={{ cursor: 'pointer', background: selectedLeads.has(l.id) ? 'rgba(10,132,255,0.06)' : undefined }} onClick={() => navigate(`/leads/${l.id}`)}>
                           {user?.role === 'admin' && (
                             <td onClick={e => e.stopPropagation()}>
@@ -500,6 +517,16 @@ export default function Groups() {
                     </tbody>
                   </table>
                 </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+                    <button className="btn btn-ghost btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>««</button>
+                    <button className="btn btn-ghost btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>«</button>
+                    <span style={{ padding: '0 12px', fontSize: '0.85rem' }}>Page {currentPage} / {totalPages}</span>
+                    <button className="btn btn-ghost btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>»</button>
+                    <button className="btn btn-ghost btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>»»</button>
+                  </div>
+                )}
               </>
             )}
           </div>

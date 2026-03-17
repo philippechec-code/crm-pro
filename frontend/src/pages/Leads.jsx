@@ -32,6 +32,8 @@ export default function Leads() {
 
   // Selection (admin)
   const [selected, setSelected] = useState(new Set());
+  const [perPage, setPerPage] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Inline comment popover
   const [commentingId, setCommentingId]   = useState(null);
@@ -137,6 +139,11 @@ export default function Leads() {
       return true;
     });
   }, [leads, search, filterStatuses, filterAgent, filterSource, user]);
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * perPage;
+    return filtered.slice(start, start + perPage);
+  }, [filtered, currentPage, perPage]);
 
   // Selection helpers
   const toggleSelect = (id) => {
@@ -146,7 +153,7 @@ export default function Leads() {
   };
   const toggleAll = () => {
     if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map(l => l.id)));
+    else setSelected(new Set(paginatedLeads.map(l => l.id)));
   };
 
   // Delete
@@ -350,9 +357,16 @@ export default function Leads() {
           </button>
         )}
 
-        <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-          {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
-        </span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setCurrentPage(1); }} className="filter-select" style={{ padding: "4px 8px", fontSize: "0.8rem" }}>
+            <option value={50}>50 / page</option>
+            <option value={100}>100 / page</option>
+            <option value={150}>150 / page</option>
+            <option value={200}>200 / page</option>
+            <option value={500}>500 / page</option>
+          </select>
+          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
       </div>
       </div>{/* end page-top */}
 
@@ -403,7 +417,7 @@ export default function Leads() {
                   </td>
                 </tr>
               )}
-              {filtered.map(l => (
+              {paginatedLeads.map(l => (
                 <tr key={l.id} style={{ cursor: 'pointer' }}>
                   {user?.role === 'admin' && (
                     <td onClick={e => { e.stopPropagation(); toggleSelect(l.id); }}>
@@ -481,7 +495,15 @@ export default function Leads() {
             </tbody>
           </table>
         </div>
-
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>««</button>
+            <button className="btn btn-ghost btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>«</button>
+            <span style={{ padding: "0 12px", fontSize: "0.85rem" }}>Page {currentPage} / {totalPages}</span>
+            <button className="btn btn-ghost btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>»</button>
+            <button className="btn btn-ghost btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>»»</button>
+          </div>
         )}
       </div>
       </div>{/* end page-scroll */}
