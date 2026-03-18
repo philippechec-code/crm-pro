@@ -33,6 +33,7 @@ export default function Leads() {
   // Selection (admin)
   const [selected, setSelected] = useState(new Set());
   const [perPage, setPerPage] = useState(100);
+  const [groups, setGroups] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Inline comment popover
@@ -92,6 +93,7 @@ export default function Leads() {
   function reload(){
     leadsApi.list().then(res => setLeads(res.data?.leads || [])).catch(e => console.error(e));
     usersApi.list().then(res => setUsers(res.data || [])).catch(() => setUsers([]));
+    groupsApi.list().then(res => setGroups(res.data || [])).catch(() => setGroups([]));
     statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
   }
 
@@ -175,6 +177,15 @@ export default function Leads() {
   };
 
   // Bulk assign
+  const bulkChangeGroup = (groupId) => {
+    if (selected.size === 0) { toast('Aucun prospect sélectionné', 'error'); return; }
+    const ids = [...selected];
+    Promise.all(ids.map(id => leadsApi.update(id, { group_id: groupId }))).then(() => {
+      reload();
+      setSelected(new Set());
+      toast('Groupe mis à jour', 'success');
+    }).catch(e => toast('Erreur', 'error'));
+  };
   const bulkAssign = (userId) => {
     if (selected.size === 0) { toast('Aucun prospect sélectionné', 'error'); return; }
     const ids = [...selected];
@@ -379,6 +390,12 @@ export default function Leads() {
               <option value="auto">Répartition automatique</option>
               {users.filter(u => u.role !== 'admin').map(u => (
                 <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+              ))}
+            </select>
+            <select className="filter-select" defaultValue="" onChange={e => { if(e.target.value) bulkChangeGroup(e.target.value); e.target.value='';}}>
+              <option value="" disabled>Déplacer vers groupe…</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
             <button className="btn btn-danger btn-sm" onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

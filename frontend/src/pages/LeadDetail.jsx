@@ -31,19 +31,19 @@ export default function LeadDetail(){
 
   function reload(){
     // Chargé via useEffect async
-    if (!l) { navigate('/leads'); return; }
-    setLead(l);
+    if (!lead) { navigate('/leads'); return; }
+    
     statusesApi.list().then(res => setStatuses(res.data || [])).catch(e => console.error(e));
     setForm({
-      first_name: l.first_name || '',
-      last_name:  l.last_name  || '',
-      phone:      l.phone      || '',
-      email:      l.email      || '',
-      address:    l.address    || '',
-      city:       l.city       || '',
-      postal_code:l.postal_code|| '',
-      status:     l.status     || 'nouveau',
-      source:     l.source     || '',
+      first_name: lead?.first_name || '',
+      last_name:  lead?.last_name  || '',
+      phone:      lead?.phone      || '',
+      email:      lead?.email      || '',
+      address:    lead?.address    || '',
+      city:       lead?.city       || '',
+      postal_code:lead?.postal_code|| '',
+      status:     lead?.status     || 'nouveau',
+      source:     lead?.source     || '',
     });
     setDirty(false);
   }
