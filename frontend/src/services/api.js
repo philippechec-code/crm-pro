@@ -102,6 +102,13 @@ export const statusesApi = {
   ]}),
 };
 
+export const sourcesApi = {
+  list: () => api.get("/sources"),
+  create: (data) => api.post("/sources", data),
+  update: (id, data) => api.put(`/sources/${id}`, data),
+  delete: (id) => api.delete(`/sources/${id}`),
+};
+
 // ─── REMINDERS ────────────────────────────────────────────────────────────
 export const remindersApi = {
   list: () => api.get('/reminders'),

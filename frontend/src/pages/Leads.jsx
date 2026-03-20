@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import storage from '../services/storage';
-import { leadsApi, groupsApi, usersApi, statusesApi } from '../services/api';
+import { leadsApi, groupsApi, usersApi, statusesApi, sourcesApi } from '../services/api';
+import SourceManagerModal from '../components/SourceManagerModal';
 import { useAuth } from '../contexts/AuthContext';
 import StatusSelect from '../components/StatusSelect';
 import AgentSelect from '../components/AgentSelect';
@@ -28,6 +29,7 @@ export default function Leads() {
   const [showCreate, setShowCreate]     = useState(false);
   const [createForm, setCreateForm]     = useState(EMPTY_FORM);
   const [showStatuses, setShowStatuses] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   const [newStatus, setNewStatus]       = useState({ label: '', color: '#60a5fa' });
 
   // Selection (admin)
@@ -255,6 +257,12 @@ export default function Leads() {
             <button className="btn btn-secondary btn-sm" onClick={() => setShowStatuses(true)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
               Gérer les statuts
+            </button>
+          )}
+          {user?.role === 'admin' && (
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowSources(true)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Gérer les sources
             </button>
           )}
           <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
@@ -591,6 +599,12 @@ export default function Leads() {
           onUpdate={(id, patch) => { statusesApi.update(id, patch).then(() => statusesApi.list().then(res => setStatuses(res.data || []))).catch(e => console.error(e)); }}
           newStatus={newStatus}
           setNewStatus={setNewStatus}
+        />
+      )}
+      {showSources && (
+        <SourceManagerModal
+          onClose={() => setShowSources(false)}
+          onReload={() => {}}
         />
       )}
 

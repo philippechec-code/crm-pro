@@ -86,10 +86,6 @@ export default function Sidebar({ open }) {
           </NavLink>
         )}
 
-        <NavLink to="/stats" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          {icons.stats} <span>Statistiques</span>
-        </NavLink>
-
         <NavLink to="/reminders" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           {icons.reminders}
           <span>Rappels</span>
